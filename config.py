@@ -24,17 +24,19 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from libqtile.config import Key, Screen, Group, Drag, Click
-from libqtile.lazy import lazy
-from libqtile import layout, bar, widget
 import os
+import re
 import socket
-# from libqtile.widget import backlight
-
+import subprocess
+from libqtile.config import Key, Screen, Group, Drag, Click
+from libqtile.command import lazy
+from libqtile import layout, bar, widget, hook
 from typing import List  # noqa: F401
+
 
 mod = "mod4"
 terminal="alacritty"
+screenshot_handler=["deepin-screen-recorder", "gnome-screenshot"]
 
 keys = [
     # Switch between windows in current stack pane
@@ -74,9 +76,11 @@ keys = [
     # Key([], "XF86MonBrightnessDown", lazy.widget['backlight'].change_backlight(backlight.ChangeDirection.DOWN)),
     Key([mod], "comma", lazy.to_screen(0)),
     Key([mod], "period", lazy.to_screen(1)),
+    # Screenshot Key
+    Key([mod, "control"], "s", lazy.spawn(screenshot_handler[0]))
 ]
 
-groups = [Group(i, persist=False) for i in "asdf1234"]
+groups = [Group(i) for i in "asdf1234"]
 
 for i in groups:
     keys.extend([
@@ -90,8 +94,15 @@ for i in groups:
         Key([mod, "shift"], i.name, lazy.window.togroup(i.name)),
     ])
 
+colors = ['#363636',  # panel background
+          '#434758',  # background for current screen tab
+          '#ffffff',  # font color for group names
+          '#ffbcbc',  # border line color for current tab
+          '#b7efcd']  # border line color for other tab and odd widgets
+
+
 layout_theme = {
-    "border_focus": "#691D1D",
+    "border_focus": colors[3],
     "margin": 2,
     "border_width": 3,
 }
@@ -113,45 +124,38 @@ layouts = [
 ]
 
 widget_defaults = dict(
-    font='sans',
+    font='DejaVu',
     fontsize=12,
     padding=3,
 )
 extension_defaults = widget_defaults.copy()
 
 
-
-colors = [["#282a36", "#282a36"], # panel background
-          ["#434758", "#434758"], # background for current screen tab
-          ["#ffffff", "#ffffff"], # font color for group names
-          ["#ff5555", "#ff5555"], # border line color for current tab
-          ["#8d62a9", "#8d62a9"], # border line color for other tab and odd widgets
-          ["#668bd7", "#668bd7"], # color for the even widgets
-          ["#e1acff", "#e1acff"]] # window name
-
 bar_theme = {
-"background": colors[0]
+    "background": colors[0]
 }
+def generate_group_box():
+    return widget.GroupBox(
+        font="DejaVu Bold",
+        fontsize=9,
+        margin_y=3,
+        margin_x=0,
+        padding_y=5,
+        padding_x=5,
+        borderwidth=3,
+        active=colors[2],
+        inactive=colors[2],
+        rounded=True,
+        highlight_color=colors[1],
+        highlight_method="line",
+        this_current_screen_border=colors[3],
+        this_screen_border=colors[4],
+        other_current_screen_border=colors[0],
+        other_screen_border=colors[0],
+        foreground=colors[2],
+        background=colors[0]
+    )
 
-group_box = widget.GroupBox(font="DejaVu Bold",
-        fontsize = 9,
-        margin_y = 3,
-        margin_x = 0,
-        padding_y = 5,
-        padding_x = 5,
-        borderwidth = 3,
-        active = colors[2],
-        inactive = colors[2],
-        rounded = False,
-        highlight_color = colors[1],
-        highlight_method = "line",
-        this_current_screen_border = colors[3],
-        this_screen_border = colors [4],
-        other_current_screen_border = colors[0],
-        other_screen_border = colors[0],
-        foreground = colors[2],
-        background = colors[0]
-)
 
 prompt = "{0}@{1}: ".format(os.environ["USER"], socket.gethostname())
 
@@ -160,41 +164,19 @@ fake_screens = [
     Screen(
         bottom=bar.Bar(
             [
-                widget.CurrentLayout(),
+                widget.CurrentLayout(foreground=colors[3]),
                 widget.Sep(),
-                widget.GroupBox(font="DejaVu Bold",
-                        fontsize = 9,
-                        margin_y = 3,
-                        margin_x = 0,
-                        padding_y = 5,
-                        padding_x = 5,
-                        borderwidth = 3,
-                        active = colors[2],
-                        inactive = colors[2],
-                        rounded = False,
-                        highlight_color = colors[1],
-                        highlight_method = "line",
-                        this_current_screen_border = colors[3],
-                        this_screen_border = colors[4],
-                        other_current_screen_border = colors[0],
-                        other_screen_border = colors[0],
-                        foreground = colors[2],
-                        background = colors[0]
-                ),
-                widget.Spacer(length=bar.STRETCH),
-                # widget.Sep(),
-                # widget.WindowName(),
-                # widget.Wlan(interface='wlp3s0'),
-                # widget.NetGraph(border_color='E0E0E0', graph_color='00CC00', frequency=5),
-                # widget.Sep(),
-                widget.TextBox('Battery:'),
-                widget.Battery(show_short_text=False, format='{percent:2.0%} | {hour:d}h:{min:02d}m'),
+                generate_group_box(),
+                widget.WindowName(foreground=colors[3]),
+                # widget.Battery(show_short_text=False, format='{percent:2.0%} | {hour:d}h:{min:02d}m'),
+                widget.BatteryIcon(),
                 widget.Sep(),
                 widget.TextBox("Brightness:"),
-                widget.Backlight(backlight_name='intel_backlight'),
+                widget.Backlight(backlight_name='intel_backlight', foreground=colors[3]),
                 widget.Sep(),
-                widget.Systray(),
-                widget.Clock(format='%Y-%m-%d %a %I:%M %p'),
+                widget.Systray(icon_size=25, padding=10),
+                widget.Sep(),
+                widget.Clock(format='%Y-%m-%d %a %I:%M %p', foreground=colors[3]),
                 widget.QuickExit(),
             ],
             30,
@@ -210,9 +192,9 @@ fake_screens = [
         bottom=bar.Bar(
             [
                 widget.Sep(),
-                widget.CurrentLayout(),
+                widget.CurrentLayout(foreground=colors[3]),
                 widget.Sep(),
-                group_box,
+                generate_group_box(),
                 widget.Prompt(
                     prompt=prompt,
                     font="DejaVu italic",
@@ -220,20 +202,27 @@ fake_screens = [
                     foreground = colors[3],
                     background = colors[1],
                 ),
+                widget.WindowName(foreground=colors[3]),
+                widget.TextBox('Updates:'),
+                widget.CheckUpdates(
+                    distro='Arch_checkupdates',
+                    display_format='{updates}',
+                    # colour_have_updates='CC0000',
+                    # colour_no_updates='4C9900',
+                    colour_have_updates=colors[3],
+                    colour_no_updates=colors[4],
+                    update_interval=604800
+                    ),
+                widget.Sep(),
+                # widget.Wlan(interface='wlp3s0'),
                 # widget.Sep(),
-                widget.WindowName(),
-                # widget.Sep(),
-                # widget.TextBox('Updates:'),
-                # widget.Pacman(foreground='00CC00', unavailable='CC0000', execute='pacman -Syu'),
-                # widget.Sep(),
-                widget.Systray(),
-                widget.Clock(format='%I:%M %p'),
+                widget.Clock(format='%I:%M %p', foreground=colors[3]),
             ],
             25,
             **bar_theme
         ),
-        x=1920,
-        y=311,
+        x=1921,
+        y=312,
         width=1360,
         height=768,
     ),
@@ -275,6 +264,15 @@ floating_layout = layout.Floating(float_rules=[
 auto_fullscreen = True
 focus_on_window_activation = "smart"
 follow_mouse_focus = False
+
+
+# @hook.subscribe.startup_once
+# def start_once():
+#     home = os.path.expanduser('~')
+#     subprocess.call([home + '/.config/qtile/autostart.sh'])
+
+
+
 # XXX: Gasp! We're lying here. In fact, nobody really uses or cares about this
 # string besides java UI toolkits; you can see several discussions on the
 # mailing lists, GitHub issues, and other WM documentation that suggest setting
